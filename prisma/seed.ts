@@ -1,0 +1,540 @@
+import { PrismaClient, Role } from "@prisma/client";
+import bcrypt from "bcryptjs";
+
+const prisma = new PrismaClient();
+
+async function main() {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("A seed de demonstração não pode ser executada em produção.");
+  }
+
+  const password = process.env.DEMO_PASSWORD;
+  if (!password || password.length < 12) {
+    throw new Error("Define DEMO_PASSWORD com pelo menos 12 caracteres antes do seed.");
+  }
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  const organizations = [
+    {
+      name: "Clínica Vida Segura",
+      slug: "clinica-vida-segura",
+      nif: "5000123456",
+      sector: "Saúde",
+      dimensao: "PEQUENA" as const,
+      city: "Luanda",
+      provincia: "Luanda",
+      contactoNome: "Dra. Marta Fictícia",
+      contactoEmail: "contacto@clinica-vida-segura.demo",
+      contactoTelefone: "+244 900 000 001",
+    },
+    {
+      name: "Kwanza Comércio Digital",
+      slug: "kwanza-comercio-digital",
+      nif: "5000654321",
+      sector: "Comércio",
+      dimensao: "MICRO" as const,
+      city: "Benguela",
+      provincia: "Benguela",
+      contactoNome: "Sr. Paulo Exemplo",
+      contactoEmail: "geral@kwanza-comercio.demo",
+      contactoTelefone: "+244 900 000 002",
+    },
+    {
+      name: "Academia Horizonte",
+      slug: "academia-horizonte",
+      nif: "5000998877",
+      sector: "Educação",
+      dimensao: "MEDIA" as const,
+      city: "Huambo",
+      provincia: "Huambo",
+      contactoNome: "Prof. João Demonstração",
+      contactoEmail: "info@academia-horizonte.demo",
+      contactoTelefone: "+244 900 000 003",
+    },
+  ];
+
+  const plan = await prisma.subscriptionPlan.upsert({
+    where: { name: "Demonstração" },
+    update: { isActive: true },
+    create: {
+      name: "Demonstração",
+      description: "Plano local de demonstração, sem cobrança.",
+    },
+  });
+
+  const superAdmin = await prisma.user.upsert({
+    where: { email: "admin@cyberpme.demo" },
+    update: { name: "Administrador CyberPME", passwordHash, isActive: true, emailVerified: new Date() },
+    create: {
+      name: "Administrador CyberPME",
+      email: "admin@cyberpme.demo",
+      passwordHash,
+      emailVerified: new Date(),
+    },
+  });
+
+  for (const organizationData of organizations) {
+    const organization = await prisma.organization.upsert({
+      where: { slug: organizationData.slug },
+      update: { ...organizationData, planoId: plan.id },
+      create: { ...organizationData, planoId: plan.id },
+    });
+
+    const adminMembership = await prisma.organizationMembership.findUnique({
+      where: { userId_organizationId: { userId: superAdmin.id, organizationId: organization.id } },
+    });
+    if (!adminMembership) {
+      await prisma.organizationMembership.create({
+        data: {
+          userId: superAdmin.id,
+          organizationId: organization.id,
+          role: Role.SUPER_ADMIN,
+        },
+      });
+    }
+  }
+
+  const demoUsers: { email: string; name: string; role: Role }[] = [];
+  for (const [index, role] of [
+    Role.ANALISTA_SEGURANCA,
+    Role.GESTOR_CLIENTE,
+    Role.COLABORADOR,
+  ].entries()) {
+    const email = `demo.${role.toLowerCase()}@cyberpme.demo`;
+    const user = await prisma.user.upsert({
+      where: { email },
+      update: { passwordHash, isActive: true },
+      create: {
+        email,
+        name: ["Analista de Demonstração", "Gestor de Demonstração", "Colaborador de Demonstração"][index],
+        passwordHash,
+      },
+    });
+    const organization = await prisma.organization.findUniqueOrThrow({
+      where: { slug: organizations[index === 0 ? 0 : 1].slug },
+    });
+    await prisma.organizationMembership.upsert({
+      where: { userId_organizationId: { userId: user.id, organizationId: organization.id } },
+      update: { role, status: "ACTIVE" },
+      create: { userId: user.id, organizationId: organization.id, role },
+    });
+    demoUsers.push({ email, name: user.name, role });
+  }
+
+  // ---------------------------------------------------------------------
+  // Dados de demonstração da Fase C (apenas se a organização ainda não tiver)
+  // ---------------------------------------------------------------------
+  const clinica = await prisma.organization.findUniqueOrThrow({ where: { slug: "clinica-vida-segura" } });
+  const kwanza = await prisma.organization.findUniqueOrThrow({ where: { slug: "kwanza-comercio-digital" } });
+  const analista = await prisma.user.findUniqueOrThrow({ where: { email: "demo.analista_seguranca@cyberpme.demo" } });
+  const gestor = await prisma.user.findUniqueOrThrow({ where: { email: "demo.gestor_cliente@cyberpme.demo" } });
+
+  const now = new Date();
+  const daysAgo = (days: number) => new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const daysAhead = (days: number) => new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
+  if ((await prisma.asset.count({ where: { organizationId: clinica.id } })) === 0) {
+    const servidor = await prisma.asset.create({
+      data: {
+        organizationId: clinica.id,
+        name: "Servidor de registos clínicos",
+        type: "HARDWARE",
+        marcaModelo: "Dell PowerEdge T350 (demo)",
+        numeroSerie: "DEMO-SN-0001",
+        sistemaOperativo: "Windows Server 2022",
+        ip: "192.168.10.5",
+        criticality: "CRITICAL",
+        owner: "TI interno",
+        location: "Sala técnica — Luanda",
+        protecaoEndpoint: true,
+        ultimaAtualizacao: daysAgo(5),
+        mfaAplicavel: true,
+        cifragem: true,
+        description: "Servidor principal com dados de pacientes (demonstração).",
+      },
+    });
+    await prisma.asset.createMany({
+      data: [
+        {
+          organizationId: clinica.id,
+          name: "Sistema de agendamento online",
+          type: "SOFTWARE",
+          marcaModelo: "Aplicação web interna",
+          criticality: "HIGH",
+          owner: "Receção",
+          protecaoEndpoint: false,
+          ultimaAtualizacao: daysAgo(45),
+          mfaAplicavel: true,
+          cifragem: false,
+          description: "Aplicação web de marcações (demonstração).",
+        },
+        {
+          organizationId: clinica.id,
+          name: "Base de dados de pacientes",
+          type: "DATA",
+          criticality: "CRITICAL",
+          owner: "Direção clínica",
+          protecaoEndpoint: true,
+          ultimaAtualizacao: daysAgo(2),
+          cifragem: true,
+        },
+        {
+          organizationId: clinica.id,
+          name: "Rede Wi-Fi de visitantes",
+          type: "NETWORK",
+          criticality: "LOW",
+          protecaoEndpoint: false,
+          cifragem: false,
+        },
+        {
+          organizationId: clinica.id,
+          name: "Portátil da receção",
+          type: "HARDWARE",
+          marcaModelo: "Lenovo ThinkPad E14 (demo)",
+          numeroSerie: "DEMO-SN-0002",
+          sistemaOperativo: "Windows 11 Pro",
+          criticality: "MEDIUM",
+          status: "UNDER_MAINTENANCE",
+          owner: "Receção",
+          protecaoEndpoint: false,
+          ultimaAtualizacao: daysAgo(70),
+          cifragem: false,
+        },
+      ],
+    });
+
+    const avaliacaoClinica = await prisma.riskAssessment.create({
+      data: {
+        organizationId: clinica.id,
+        title: "Avaliação anual 2026",
+        description: "Avaliação de risco anual aos sistemas de informação da clínica (demonstração).",
+        domain: "Sistemas de informação",
+        ownerId: analista.id,
+        startDate: daysAgo(30),
+        status: "EM_ANDAMENTO",
+      },
+    });
+
+    const riscoAcesso = await prisma.risk.create({
+      data: {
+        organizationId: clinica.id,
+        assessmentId: avaliacaoClinica.id,
+        title: "Acesso indevido a registos clínicos",
+        description: "Contas partilhadas na receção podem expor dados de pacientes.",
+        threat: "Acesso não autorizado por pessoal interno",
+        vulnerability: "Contas partilhadas sem autenticação individual",
+        probability: 4,
+        impact: 5,
+        level: 20,
+        riskLevel: "CRITICO",
+        status: "EM_TRATAMENTO",
+        treatment: "Contas individuais e revisão trimestral de acessos.",
+        ownerId: analista.id,
+        dueDate: daysAhead(30),
+        assetId: servidor.id,
+      },
+    });
+    const riscoRansomware = await prisma.risk.create({
+      data: {
+        organizationId: clinica.id,
+        assessmentId: avaliacaoClinica.id,
+        title: "Ransomware em postos de trabalho",
+        threat: "Ransomware via e-mail ou pen drive",
+        vulnerability: "Estações sem proteção de endpoint",
+        probability: 3,
+        impact: 4,
+        level: 12,
+        riskLevel: "ALTO",
+        status: "EM_TRATAMENTO",
+        treatment: "Backup diário e formação anti-phishing.",
+        ownerId: analista.id,
+        dueDate: daysAhead(60),
+      },
+    });
+    await prisma.risk.createMany({
+      data: [
+        {
+          organizationId: clinica.id,
+          assessmentId: avaliacaoClinica.id,
+          title: "Falha elétrica prolongada",
+          threat: "Corte prolongado de energia",
+          vulnerability: "Sem gerador de reserva",
+          probability: 2,
+          impact: 3,
+          level: 6,
+          riskLevel: "MEDIO",
+          status: "ACEITE",
+        },
+        {
+          organizationId: clinica.id,
+          title: "Perda de dispositivo móvel com dados",
+          threat: "Roubo ou perda de portátil/telemóvel",
+          vulnerability: "Portátil da receção sem cifragem",
+          probability: 2,
+          impact: 4,
+          level: 8,
+          riskLevel: "MEDIO",
+          status: "ABERTO",
+          dueDate: daysAgo(2),
+        },
+      ],
+    });
+
+    const tarefaMfa = await prisma.riskTreatmentTask.create({
+      data: {
+        organizationId: clinica.id,
+        riskId: riscoAcesso.id,
+        title: "Ativar autenticação de dois fatores no e-mail",
+        status: "EM_ANDAMENTO",
+        priority: "HIGH",
+        dueDate: daysAhead(7),
+        assigneeId: analista.id,
+      },
+    });
+    await prisma.riskTreatmentTask.createMany({
+      data: [
+        {
+          organizationId: clinica.id,
+          riskId: riscoAcesso.id,
+          title: "Rever permissões das contas da receção",
+          status: "NAO_INICIADA",
+          priority: "MEDIUM",
+          dueDate: daysAgo(3),
+          assigneeId: analista.id,
+        },
+        {
+          organizationId: clinica.id,
+          riskId: riscoRansomware.id,
+          title: "Instalar proteção de endpoint em todos os postos",
+          status: "EM_ANDAMENTO",
+          priority: "URGENT",
+          dueDate: daysAhead(14),
+          assigneeId: analista.id,
+        },
+        {
+          organizationId: clinica.id,
+          riskId: riscoRansomware.id,
+          title: "Formação de sensibilização anti-phishing",
+          status: "CONCLUIDA",
+          priority: "MEDIUM",
+          assigneeId: analista.id,
+        },
+      ],
+    });
+    await prisma.taskComment.createMany({
+      data: [
+        {
+          taskId: tarefaMfa.id,
+          authorId: analista.id,
+          body: "MFA ativado para a direção. Falta a equipa da receção (demonstração).",
+        },
+        {
+          taskId: tarefaMfa.id,
+          authorId: superAdmin.id,
+          body: "Confirmar na próxima semana se falta alguém.",
+        },
+      ],
+    });
+
+    await prisma.backupRecord.createMany({
+      data: [
+        {
+          organizationId: clinica.id,
+          resource: "Base de dados de pacientes",
+          frequency: "diário",
+          status: "SUCCESS",
+          lastRunAt: daysAgo(1),
+          nextRunAt: daysAhead(1),
+        },
+        {
+          organizationId: clinica.id,
+          resource: "Servidor de ficheiros",
+          frequency: "semanal",
+          status: "FAILED",
+          lastRunAt: daysAgo(6),
+          notes: "Falha de espaço em disco (demonstração).",
+        },
+      ],
+    });
+
+    await prisma.ticket.createMany({
+      data: [
+        {
+          organizationId: clinica.id,
+          title: "Computador da receção muito lento",
+          description: "Possível malware; pedir análise.",
+          category: "INCIDENT",
+          status: "IN_PROGRESS",
+          priority: "HIGH",
+          createdById: analista.id,
+        },
+        {
+          organizationId: clinica.id,
+          title: "Criar conta para nova enfermeira",
+          category: "REQUEST",
+          status: "OPEN",
+          priority: "MEDIUM",
+          createdById: analista.id,
+        },
+      ],
+    });
+
+    await prisma.incident.createMany({
+      data: [
+        {
+          organizationId: clinica.id,
+          title: "E-mail de phishing reportado pela receção",
+          description: "Mensagem falsa de fornecedor pedindo credenciais.",
+          severity: "HIGH",
+          status: "INVESTIGATING",
+          detectedAt: daysAgo(2),
+        },
+        {
+          organizationId: clinica.id,
+          title: "Tentativa de acesso noturno ao VPN",
+          severity: "MEDIUM",
+          status: "RESOLVED",
+          detectedAt: daysAgo(15),
+          resolvedAt: daysAgo(14),
+        },
+      ],
+    });
+
+    await prisma.phishingCampaign.createMany({
+      data: [
+        {
+          organizationId: clinica.id,
+          name: "Simulação trimestral Q3",
+          status: "COMPLETED",
+          targetCount: 25,
+          sentCount: 25,
+          clickedCount: 4,
+          reportedCount: 9,
+          launchedAt: daysAgo(20),
+        },
+        {
+          organizationId: clinica.id,
+          name: "Simulação trimestral Q4",
+          status: "DRAFT",
+          targetCount: 30,
+        },
+      ],
+    });
+  }
+
+  if ((await prisma.asset.count({ where: { organizationId: kwanza.id } })) === 0) {
+    await prisma.asset.createMany({
+      data: [
+        {
+          organizationId: kwanza.id,
+          name: "Loja online (e-commerce)",
+          type: "SERVICE",
+          criticality: "CRITICAL",
+          owner: "Equipa digital",
+          protecaoEndpoint: true,
+          ultimaAtualizacao: daysAgo(10),
+          mfaAplicavel: true,
+          cifragem: true,
+        },
+        {
+          organizationId: kwanza.id,
+          name: "Portáteis da equipa comercial",
+          type: "HARDWARE",
+          marcaModelo: "HP ProBook 450 (demo)",
+          sistemaOperativo: "Windows 11 Pro",
+          criticality: "MEDIUM",
+          protecaoEndpoint: true,
+          ultimaAtualizacao: daysAgo(25),
+          cifragem: false,
+        },
+      ],
+    });
+    const avaliacaoKwanza = await prisma.riskAssessment.create({
+      data: {
+        organizationId: kwanza.id,
+        title: "Avaliação da loja online",
+        domain: "E-commerce",
+        ownerId: gestor.id,
+        startDate: daysAgo(15),
+        status: "EM_ANDAMENTO",
+      },
+    });
+    const riscoFraude = await prisma.risk.create({
+      data: {
+        organizationId: kwanza.id,
+        assessmentId: avaliacaoKwanza.id,
+        title: "Fraude em pagamentos online",
+        threat: "Pagamentos com cartões roubados",
+        vulnerability: "Sem regras anti-fraude configuradas",
+        probability: 3,
+        impact: 4,
+        level: 12,
+        riskLevel: "ALTO",
+        status: "EM_TRATAMENTO",
+        treatment: "Regras anti-fraude e revisão manual de encomendas altas.",
+        ownerId: gestor.id,
+        dueDate: daysAhead(45),
+      },
+    });
+    await prisma.riskTreatmentTask.create({
+      data: {
+        organizationId: kwanza.id,
+        riskId: riscoFraude.id,
+        title: "Atualizar plugins da loja online",
+        status: "NAO_INICIADA",
+        priority: "HIGH",
+        dueDate: daysAhead(5),
+        assigneeId: gestor.id,
+      },
+    });
+    await prisma.backupRecord.createMany({
+      data: [
+        {
+          organizationId: kwanza.id,
+          resource: "Base de dados da loja",
+          frequency: "diário",
+          status: "SUCCESS",
+          lastRunAt: daysAgo(1),
+          nextRunAt: daysAhead(1),
+        },
+      ],
+    });
+    await prisma.ticket.createMany({
+      data: [
+        {
+          organizationId: kwanza.id,
+          title: "Erro no checkout com Multicaixa Express",
+          category: "INCIDENT",
+          status: "OPEN",
+          priority: "URGENT",
+          createdById: gestor.id,
+        },
+      ],
+    });
+    await prisma.phishingCampaign.createMany({
+      data: [
+        {
+          organizationId: kwanza.id,
+          name: "Simulação equipa comercial",
+          status: "RUNNING",
+          targetCount: 15,
+          sentCount: 15,
+          clickedCount: 2,
+          reportedCount: 5,
+          launchedAt: daysAgo(3),
+        },
+      ],
+    });
+  }
+
+  console.log("Seed de demonstração concluída.");
+}
+
+main()
+  .catch((error: unknown) => {
+    console.error("Falha ao criar dados de demonstração:", error);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

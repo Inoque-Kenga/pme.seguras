@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cyberpme-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cyberpme
+      POSTGRES_USER: cyberpme
+      POSTGRES_PASSWORD: cyberpme_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - cyberpme-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cyberpme -d cyberpme"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  cyberpme-postgres-data:
