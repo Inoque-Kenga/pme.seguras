@@ -24,7 +24,7 @@ const navigation = [
   { href: "/backups", label: "Backups", icon: DatabaseBackup, roles: [] },
   { href: "/tickets", label: "Tickets", icon: Ticket, roles: [] },
   { href: "/incidentes", label: "Incidentes", icon: Siren, roles: [] },
-  { href: "/phishing", label: "Phishing", icon: ShieldAlert, roles: ["SUPER_ADMIN", "ANALISTA_SEGURANCA", "GESTOR_CLIENTE"] },
+  { href: "/phishing", label: "Phishing", icon: ShieldAlert, roles: [] },
   { href: "/admin/organizacoes", label: "Organizações", icon: Building2, roles: ["SUPER_ADMIN", "ANALISTA_SEGURANCA"] },
   { href: "/admin/utilizadores", label: "Acessos", icon: Users, roles: ["SUPER_ADMIN"] },
 ];

@@ -2,18 +2,24 @@ import type {
   AssetStatus,
   AssetType,
   AssessmentStatus,
-  BackupStatus,
+  BackupFrequency,
+  BackupJobStatus,
   Criticality,
   IncidentSeverity,
   IncidentStatus,
+  IncidentType,
   MembershipStatus,
   OrganizationSize,
   OrganizationStatus,
   PhishingCampaignStatus,
+  PhishingChannel,
+  PhishingClassification,
+  PhishingReportStatus,
   Priority,
   RiskLevel,
   RiskStatus,
   Role,
+  ScoreCategory,
   TicketCategory,
   TicketStatus,
   TreatmentTaskStatus,
@@ -36,6 +42,20 @@ export const organizationStatusLabels: Record<OrganizationStatus, string> = {
 export const organizationStatusTones: Record<OrganizationStatus, Tone> = {
   ACTIVE: "green",
   ARCHIVED: "slate",
+};
+
+export const scoreCategoryLabels: Record<ScoreCategory, string> = {
+  CRITICO: "Crítico",
+  EM_RISCO: "Em risco",
+  ACEITAVEL: "Aceitável",
+  BOM: "Bom",
+};
+
+export const scoreCategoryTones: Record<ScoreCategory, Tone> = {
+  CRITICO: "red",
+  EM_RISCO: "amber",
+  ACEITAVEL: "blue",
+  BOM: "green",
 };
 
 export const membershipStatusLabels: Record<MembershipStatus, string> = {
@@ -166,42 +186,50 @@ export const priorityTones: Record<Priority, Tone> = {
   URGENT: "red",
 };
 
-export const backupStatusLabels: Record<BackupStatus, string> = {
-  SUCCESS: "Com sucesso",
-  FAILED: "Falhado",
-  RUNNING: "Em execução",
-  OVERDUE: "Em atraso",
+export const backupFrequencyLabels: Record<BackupFrequency, string> = {
+  DIARIA: "Diária",
+  SEMANAL: "Semanal",
+  MENSAL: "Mensal",
+  OUTRA: "Outra",
 };
 
-export const backupStatusTones: Record<BackupStatus, Tone> = {
-  SUCCESS: "green",
-  FAILED: "red",
-  RUNNING: "blue",
-  OVERDUE: "amber",
+export const backupJobStatusLabels: Record<BackupJobStatus, string> = {
+  SUCESSO: "Sucesso",
+  FALHA: "Falha",
+  AVISO: "Aviso",
+  DESCONHECIDO: "Desconhecido",
+};
+
+export const backupJobStatusTones: Record<BackupJobStatus, Tone> = {
+  SUCESSO: "green",
+  FALHA: "red",
+  AVISO: "amber",
+  DESCONHECIDO: "slate",
 };
 
 export const ticketStatusLabels: Record<TicketStatus, string> = {
-  OPEN: "Aberto",
-  IN_PROGRESS: "Em curso",
-  WAITING_CLIENT: "A aguardar cliente",
-  RESOLVED: "Resolvido",
-  CLOSED: "Fechado",
+  ABERTO: "Aberto",
+  EM_ANALISE: "Em análise",
+  EM_ANDAMENTO: "Em andamento",
+  AGUARDA_CLIENTE: "Aguarda cliente",
+  RESOLVIDO: "Resolvido",
+  FECHADO: "Fechado",
 };
 
 export const ticketStatusTones: Record<TicketStatus, Tone> = {
-  OPEN: "amber",
-  IN_PROGRESS: "blue",
-  WAITING_CLIENT: "purple",
-  RESOLVED: "green",
-  CLOSED: "slate",
+  ABERTO: "amber",
+  EM_ANALISE: "blue",
+  EM_ANDAMENTO: "blue",
+  AGUARDA_CLIENTE: "purple",
+  RESOLVIDO: "green",
+  FECHADO: "slate",
 };
 
 export const ticketCategoryLabels: Record<TicketCategory, string> = {
-  INCIDENT: "Incidente",
-  REQUEST: "Pedido",
-  VULNERABILITY: "Vulnerabilidade",
-  CHANGE: "Alteração",
-  OTHER: "Outro",
+  SUPORTE: "Suporte",
+  INCIDENTE: "Incidente",
+  SOLICITACAO: "Solicitação",
+  OUTRO: "Outro",
 };
 
 export const incidentSeverityLabels: Record<IncidentSeverity, string> = {
@@ -218,20 +246,71 @@ export const incidentSeverityTones: Record<IncidentSeverity, Tone> = {
   CRITICAL: "red",
 };
 
+export const incidentTypeLabels: Record<IncidentType, string> = {
+  PHISHING: "Phishing",
+  MALWARE: "Malware",
+  RANSOMWARE: "Ransomware",
+  CONTA_COMPROMETIDA: "Conta comprometida",
+  PERDA_ROUBO_EQUIPAMENTO: "Perda/roubo de equipamento",
+  ACESSO_INDEVIDO: "Acesso indevido",
+  FRAUDE: "Fraude",
+  INDISPONIBILIDADE: "Indisponibilidade",
+  OUTRO: "Outro",
+};
+
 export const incidentStatusLabels: Record<IncidentStatus, string> = {
-  DETECTED: "Detetado",
-  INVESTIGATING: "Em investigação",
-  CONTAINED: "Contido",
-  RESOLVED: "Resolvido",
-  CLOSED: "Fechado",
+  REPORTADO: "Reportado",
+  EM_ANALISE: "Em análise",
+  CONTIDO: "Contido",
+  ERRADICADO: "Erradicado",
+  RECUPERADO: "Recuperado",
+  ENCERRADO: "Encerrado",
 };
 
 export const incidentStatusTones: Record<IncidentStatus, Tone> = {
-  DETECTED: "red",
-  INVESTIGATING: "amber",
-  CONTAINED: "blue",
-  RESOLVED: "green",
-  CLOSED: "slate",
+  REPORTADO: "red",
+  EM_ANALISE: "amber",
+  CONTIDO: "blue",
+  ERRADICADO: "purple",
+  RECUPERADO: "green",
+  ENCERRADO: "slate",
+};
+
+export const phishingChannelLabels: Record<PhishingChannel, string> = {
+  EMAIL: "E-mail",
+  WHATSAPP: "WhatsApp",
+  SMS: "SMS",
+  OUTRO: "Outro",
+};
+
+export const phishingClassificationLabels: Record<PhishingClassification, string> = {
+  BAIXA: "Baixa",
+  MEDIA: "Média",
+  ALTA: "Alta",
+};
+
+export const phishingClassificationTones: Record<PhishingClassification, Tone> = {
+  BAIXA: "slate",
+  MEDIA: "amber",
+  ALTA: "red",
+};
+
+export const phishingReportStatusLabels: Record<PhishingReportStatus, string> = {
+  NOVO: "Novo",
+  EM_ANALISE: "Em análise",
+  CONVERTIDO_TICKET: "Convertido em ticket",
+  CONVERTIDO_INCIDENTE: "Convertido em incidente",
+  FALSO_POSITIVO: "Falso positivo",
+  ENCERRADO: "Encerrado",
+};
+
+export const phishingReportStatusTones: Record<PhishingReportStatus, Tone> = {
+  NOVO: "amber",
+  EM_ANALISE: "blue",
+  CONVERTIDO_TICKET: "purple",
+  CONVERTIDO_INCIDENTE: "red",
+  FALSO_POSITIVO: "slate",
+  ENCERRADO: "green",
 };
 
 export const phishingStatusLabels: Record<PhishingCampaignStatus, string> = {

@@ -74,9 +74,77 @@
 - `tests/risk-access.test.ts` — isolamento multi-tenant (Prisma mockado): edição cross-org bloqueada, listagem sempre filtrada, COLABORADOR bloqueado, ativo de outra organização rejeitado.
 - Total acumulado: 45 testes.
 
-## Próximos passos — Fase C3 (backups, tickets, incidentes, phishing)
+## Fase C3 — Backups, tickets, incidentes e phishing (concluída)
 
-- Revisitar os módulos de backups, tickets, incidentes e phishing com a estrutura org-scoped (`/organizacoes/[id]/...`) e o padrão de serviços tipados da Fase C1/C2.
-- Destaque de riscos críticos no dashboard (hoje apenas na lista, conforme especificado).
-- Notificações internas de prazos em atraso.
-- Evolução posterior: recuperação de palavra-passe, rate limiting, CSP com nonce, MFA.
+### Backups e recuperação (`/organizacoes/[id]/backups`)
+
+- Modelos `BackupJob` (sistema, fornecedor, frequência DIARIA/SEMANAL/MENSAL/OUTRA, estado SUCESSO/FALHA/AVISO/DESCONHECIDO, tamanho, localização, retenção, RTO/RPO, último teste) e `BackupVerification` (testes de restauração).
+- Indicadores: falhas nos últimos 7 dias, sem teste de restauração há +30 dias, estado desconhecido.
+- Semáforo de saúde por backup (`backupSemaphore`, função pura testada): vermelho em falha/desconhecido, amarelo em aviso/atraso/sem teste recente.
+- Edição exclusiva de ANALISTA_SEGURANCA e GESTOR_CLIENTE; COLABORADOR visualiza.
+
+### Tickets e suporte (`/organizacoes/[id]/tickets`)
+
+- `Ticket` com categoria (SUPORTE/INCIDENTE/SOLICITACAO/OUTRO), estado (ABERTO→FECHADO), prioridade, SLA em horas, ativo e ligações a incidente/report.
+- `TicketComment` + `TicketEvent` (histórico de estados e atribuições visível no detalhe).
+- Qualquer membro cria; apenas ANALISTA_SEGURANCA atribui/assume; ciclo de vida gerido por ANALISTA_SEGURANCA e GESTOR_CLIENTE; COLABORADOR comenta apenas nos seus tickets.
+- Painel do analista (atribuídos + vencidos por SLA); tickets vencidos destacados com ⏰.
+
+### Incidentes de segurança (`/organizacoes/[id]/incidentes`)
+
+- 9 tipos (PHISHING, MALWARE, RANSOMWARE, ...), severidade, data/hora, sistemas afetados, ações imediatas, lições aprendidas, responsável, estado (REPORTADO→ENCERRADO).
+- `IncidentTimelineEvent`: linha do tempo com eventos de estado, ações e notas.
+- Checklist de resposta fixa e, para ransomware, orientação explícita: nunca pagar resgate, isolar, preservar evidências, avaliar backups, contactar apoio/autoridades.
+- Conversão em ticket (ligado ao incidente) e atalho para registar risco.
+
+### Reporte de phishing (`/organizacoes/[id]/phishing`)
+
+- `PhishingReport`: canal (EMAIL/WHATSAPP/SMS/OUTRO), remetente, assunto, descrição, URL suspeita, classificação inicial, reportante.
+- Qualquer membro reporta; triagem exclusiva de ANALISTA_SEGURANCA: em análise, falso positivo, converter em ticket ou em incidente (cria as entidades ligadas e muda o estado do report).
+- URLs do seed são fictícios (`*.test`).
+
+### Testes
+
+- `tests/c3-schemas.test.ts` — schemas dos 4 módulos + semáforo de backups + SLA de tickets.
+- `tests/c3-access.test.ts` — isolamento multi-tenant (listas filtradas, edição cross-org bloqueada) + regras de papel (COLABORADOR cria ticket mas não edita backups nem comenta tickets alheios).
+- Total acumulado: 67 testes.
+
+## Fase C4 — Score de segurança e dashboards (concluída)
+
+### Motor de score (`lib/security-score.ts`, função pura)
+
+- Score 0–100 por organização em 8 categorias com pesos (MFA 20, endpoints 15, backups 20, atualizações 10, rede 10, ativos 10, formação/phishing 10, incidentes/políticas 5).
+- Faixas: CRITICO (<40), EM_RISCO (40-59), ACEITAVEL (60-79), BOM (≥80).
+- Dados em falta (MFA por conta, segmentação de rede, políticas, formação) → pontuação conservadora (~25%) + selo "dados incompletos" (⚠︎). Nada é inventado.
+- Fatores de redução (top 5) e ações recomendadas derivadas das categorias mais fracas.
+
+### Serviço (`lib/services/security-score.service.ts`)
+
+- `collectScoreInput` recolhe dados reais (assets, backups, campanhas, incidentes), sempre filtrados por `organizationId`.
+- `computeAndStoreSnapshot`: guarda `SecurityScoreSnapshot` (máx. 1 por 24h) com `detalhesJson` e registo em auditoria.
+- Histórico de 6 meses + comparação com o mês anterior para a variação (▲/▼).
+- Dashboard global: `listOrganizationsWithScores` (filtros setor/dimensão/faixa) + `getGlobalAggregates` (riscos críticos abertos, incidentes críticos 30 dias).
+
+### Dashboards
+
+- `/organizacoes/[id]/dashboard` — radial do score, barras por categoria, linha de evolução 6 meses, fatores, recomendações, riscos críticos/altos, semáforo de backups, tickets por prioridade, incidentes 30 dias; etiqueta de dados de demonstração e de indicadores incompletos.
+- `/dashboard` — global para SUPER_ADMIN/ANALISTA_SEGURANCA (lista + agregados); outros papéis são redirecionados para o dashboard da sua organização.
+- Gráficos em Recharts (`components/score-charts.tsx`); cores sempre acompanhadas de texto/ícones.
+
+### Testes
+
+- `tests/security-score.test.ts` — cálculo com dados fictícios, conservadorismo sem dados, penalizações (falhas de backup, cliques de phishing), bandas de classificação.
+- `tests/score-access.test.ts` — todas as queries do cálculo filtradas por `organizationId`; snapshots não duplicados dentro de 24h.
+- Total acumulado: 76 testes.
+
+## Fase C concluída ✅
+
+C1 (organizações/utilizadores/ativos) → C2 (avaliações/riscos/tarefas) → C3 (backups/tickets/incidentes/phishing) → C4 (score/dashboards).
+
+## Próximos passos opcionais
+
+- Módulo de formações (`TrainingAssignment`) e políticas (`SecurityPolicy`) para alimentar as categorias hoje conservadoras.
+- Campo de MFA por conta e dados de rede para o mesmo fim.
+- Integrações reais (EDR, e-mail, backups) via adaptadores, com segredos em gestor de segredos.
+- Endurecimento: recuperação de palavra-passe, rate limiting, CSP com nonce, MFA.
+- Relatórios exportáveis (PDF) do score e da postura de segurança.

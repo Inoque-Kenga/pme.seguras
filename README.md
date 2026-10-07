@@ -15,6 +15,34 @@ Plataforma SaaS multiempresa para gestão de cibersegurança de pequenas e médi
 - **Tarefas de tratamento** (`/organizacoes/[id]/tarefas`) — cada tarefa está associada a um risco, com responsável, prioridade, prazo, comentários simples e indicadores de tarefas vencidas e de prioridade alta/urgente abertas.
 - Criar/gerir é exclusivo de ANALISTA_SEGURANCA e GESTOR_CLIENTE; COLABORADOR apenas visualiza e comenta.
 
+## Continuidade e resposta (Fase C3)
+
+- **Backups e recuperação** (`/organizacoes/[id]/backups`) — registo de sistemas protegidos com fornecedor, frequência, RTO/RPO e retenção; testes de restauração (`BackupVerification`); indicadores (falhas 7 dias, sem teste +30 dias, desconhecidos) e semáforo de saúde por backup.
+- **Tickets e suporte** (`/organizacoes/[id]/tickets`) — qualquer colaborador abre tickets; comentários, histórico de alterações, SLA com destaque de vencidos e painel do analista. Só ANALISTA_SEGURANCA atribui/assume; COLABORADOR comenta nos seus tickets.
+- **Incidentes de segurança** (`/organizacoes/[id]/incidentes`) — 9 tipos (phishing, ransomware, etc.), severidade, sistemas afetados, ações imediatas, lições aprendidas, linha do tempo e checklist de resposta. Conversão em ticket ou risco. Orientação explícita anti-pagamento de resgate em ransomware.
+- **Reporte de phishing** (`/organizacoes/[id]/phishing`) — formulário simples para qualquer colaborador reportar mensagens suspeitas (e-mail, WhatsApp, SMS); triagem pelo analista: falso positivo, converter em ticket ou em incidente.
+
+## Score de segurança e dashboards (Fase C4)
+
+O **score de segurança** (0–100) é calculado por organização a partir dos dados reais registados, em 8 categorias com pesos:
+
+| Categoria | Peso | Base de cálculo |
+|---|---|---|
+| Gestão de identidade e MFA | 20 | % de contas administrativas com MFA (sem dados → conservador) |
+| Proteção de endpoints | 15 | % de computadores com proteção de endpoint |
+| Backups e recuperação | 20 | Backups com sucesso nos últimos 30 dias − penalização por falhas |
+| Atualizações e vulnerabilidades | 10 | % de ativos atualizados nos últimos 30 dias |
+| Segurança de rede | 10 | Firewall e Wi-Fi segmentado (sem dados → conservador) |
+| Gestão de ativos | 10 | % de ativos com responsável e localização preenchidos |
+| Formação e phishing | 10 | Taxa de cliques nas simulações |
+| Resposta a incidentes e políticas | 5 | Política publicada + incidentes tratados |
+
+Faixas: **Crítico** (<40) · **Em risco** (40–59) · **Aceitável** (60–79) · **Bom** (≥80). Indicadores sem dados recebem pontuação conservadora e são marcados como incompletos (⚠︎) — nunca são inventados.
+
+- **Dashboard da organização** (`/organizacoes/[id]/dashboard`) — score radial, score por categoria, evolução de 6 meses, principais fatores de redução, ações recomendadas, riscos críticos/altos abertos, semáforo de backups, tickets por prioridade e incidentes recentes.
+- **Dashboard global** (`/dashboard`, SUPER_ADMIN e ANALISTA_SEGURANCA) — todas as organizações com score, filtros por setor/dimensão/faixa, agregados (organizações por faixa, riscos críticos abertos, incidentes críticos no último mês).
+- Snapshots (`SecurityScoreSnapshot`) guardados automaticamente (máx. 1/24h) e registados em auditoria.
+
 ## O que está preparado
 
 - Next.js App Router com TypeScript strict, Tailwind CSS e ESLint.
@@ -91,6 +119,16 @@ npm run build
 /organizacoes/[id]/tarefas                Tarefas de tratamento (+ indicadores)
 /organizacoes/[id]/tarefas/nova           Criar tarefa (associada a um risco)
 /organizacoes/[id]/tarefas/[taskId]       Detalhe, edição e comentários
+/organizacoes/[id]/backups                Backups (+ indicadores e semáforo)
+/organizacoes/[id]/backups/[backupId]     Detalhe e testes de restauração
+/organizacoes/[id]/tickets                Tickets (+ painel do analista, SLA)
+/organizacoes/[id]/tickets/[ticketId]     Detalhe, comentários e histórico
+/organizacoes/[id]/incidentes             Incidentes de segurança
+/organizacoes/[id]/incidentes/[incidentId] Detalhe, linha do tempo, conversões
+/organizacoes/[id]/phishing               Reports de phishing + triagem
+/organizacoes/[id]/phishing/novo          Reportar mensagem suspeita
+/organizacoes/[id]/dashboard              Dashboard da organização (score)
+/dashboard                              Dashboard global (admins)
 ```
 
 ## Estrutura

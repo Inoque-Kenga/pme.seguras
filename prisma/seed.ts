@@ -336,66 +336,154 @@ async function main() {
       ],
     });
 
-    await prisma.backupRecord.createMany({
+    const backupPacientes = await prisma.backupJob.create({
+      data: {
+        organizationId: clinica.id,
+        sistemaAtivo: "Base de dados de pacientes",
+        fornecedor: "Backblaze (demo)",
+        frequencia: "DIARIA",
+        ultimaExecucao: daysAgo(1),
+        estado: "SUCESSO",
+        tamanhoGB: 42.5,
+        localizacao: "Cloud",
+        retencaoDias: 30,
+        rtoHoras: 4,
+        rpoHoras: 24,
+        ultimoTesteRestauracao: daysAgo(10),
+      },
+    });
+    const backupFicheiros = await prisma.backupJob.create({
+      data: {
+        organizationId: clinica.id,
+        sistemaAtivo: "Servidor de ficheiros",
+        fornecedor: "NAS local (demo)",
+        frequencia: "SEMANAL",
+        ultimaExecucao: daysAgo(6),
+        estado: "FALHA",
+        localizacao: "NAS local",
+        retencaoDias: 14,
+        rtoHoras: 8,
+        rpoHoras: 168,
+        notas: "Falha de espaço em disco (demonstração).",
+      },
+    });
+    await prisma.backupVerification.createMany({
       data: [
         {
-          organizationId: clinica.id,
-          resource: "Base de dados de pacientes",
-          frequency: "diário",
-          status: "SUCCESS",
-          lastRunAt: daysAgo(1),
-          nextRunAt: daysAhead(1),
+          backupJobId: backupPacientes.id,
+          dataTeste: daysAgo(10),
+          resultado: "SUCESSO",
+          detalhes: "Restauro de ficheiro de teste concluído (demonstração).",
         },
         {
-          organizationId: clinica.id,
-          resource: "Servidor de ficheiros",
-          frequency: "semanal",
-          status: "FAILED",
-          lastRunAt: daysAgo(6),
-          notes: "Falha de espaço em disco (demonstração).",
+          backupJobId: backupFicheiros.id,
+          dataTeste: daysAgo(40),
+          resultado: "FALHA",
+          detalhes: "Restauro falhou por espaço insuficiente (demonstração).",
         },
       ],
     });
 
-    await prisma.ticket.createMany({
-      data: [
-        {
-          organizationId: clinica.id,
-          title: "Computador da receção muito lento",
-          description: "Possível malware; pedir análise.",
-          category: "INCIDENT",
-          status: "IN_PROGRESS",
-          priority: "HIGH",
-          createdById: analista.id,
+    const ticketLento = await prisma.ticket.create({
+      data: {
+        organizationId: clinica.id,
+        title: "Computador da receção muito lento",
+        description: "Possível malware; pedir análise.",
+        category: "SUPORTE",
+        status: "EM_ANDAMENTO",
+        priority: "HIGH",
+        slaHoras: 48,
+        createdById: analista.id,
+        assigneeId: analista.id,
+        events: {
+          create: [
+            { tipo: "STATUS_CHANGE", descricao: "Ticket criado (Aberto).", autorId: analista.id },
+            { tipo: "ATRIBUICAO", descricao: "Ticket atribuído a Analista de Demonstração.", autorId: analista.id },
+          ],
         },
-        {
-          organizationId: clinica.id,
-          title: "Criar conta para nova enfermeira",
-          category: "REQUEST",
-          status: "OPEN",
-          priority: "MEDIUM",
-          createdById: analista.id,
-        },
-      ],
+      },
+    });
+    await prisma.ticket.create({
+      data: {
+        organizationId: clinica.id,
+        title: "Criar conta para nova enfermeira",
+        category: "SOLICITACAO",
+        status: "ABERTO",
+        priority: "MEDIUM",
+        createdById: analista.id,
+        events: { create: { tipo: "STATUS_CHANGE", descricao: "Ticket criado (Aberto).", autorId: analista.id } },
+      },
+    });
+    await prisma.ticketComment.create({
+      data: {
+        ticketId: ticketLento.id,
+        authorId: analista.id,
+        conteudo: "Análise inicial feita; agendada limpeza para amanhã (demonstração).",
+      },
     });
 
-    await prisma.incident.createMany({
+    const incidentePhishing = await prisma.incident.create({
+      data: {
+        organizationId: clinica.id,
+        title: "E-mail de phishing reportado pela receção",
+        description: "Mensagem falsa de fornecedor pedindo credenciais.",
+        type: "PHISHING",
+        severity: "HIGH",
+        status: "EM_ANALISE",
+        detectedAt: daysAgo(2),
+        sistemasAfetados: "Conta de e-mail da receção",
+        acoesImediatas: "Password da conta reposta; mensagem em quarentena.",
+        responsavelId: analista.id,
+        timeline: {
+          create: [
+            { tipo: "STATUS_CHANGE", descricao: "Incidente reportado.", autorId: analista.id },
+            { tipo: "ACAO", descricao: "Password reposta e mensagem colocada em quarentena.", autorId: analista.id },
+          ],
+        },
+      },
+    });
+    void incidentePhishing;
+    await prisma.incident.create({
+      data: {
+        organizationId: clinica.id,
+        title: "Tentativa de acesso noturno ao VPN",
+        type: "ACESSO_INDEVIDO",
+        severity: "MEDIUM",
+        status: "RECUPERADO",
+        detectedAt: daysAgo(15),
+        resolvedAt: daysAgo(14),
+        sistemasAfetados: "VPN",
+        licoesAprendidas: "Ativar MFA no VPN reduziu tentativas repetidas (demonstração).",
+        timeline: {
+          create: [
+            { tipo: "STATUS_CHANGE", descricao: "Incidente reportado.", autorId: superAdmin.id },
+            { tipo: "STATUS_CHANGE", descricao: "Estado alterado para Recuperado.", autorId: superAdmin.id },
+          ],
+        },
+      },
+    });
+
+    await prisma.phishingReport.createMany({
       data: [
         {
           organizationId: clinica.id,
-          title: "E-mail de phishing reportado pela receção",
-          description: "Mensagem falsa de fornecedor pedindo credenciais.",
-          severity: "HIGH",
-          status: "INVESTIGATING",
-          detectedAt: daysAgo(2),
+          canal: "EMAIL",
+          remetente: "facturas@fornecedor-falso.example",
+          assunto: "Fatura em atraso — pagamento urgente",
+          descricao: "E-mail a pedir transferência urgente para novo IBAN. Ninguém interagiu (demonstração).",
+          urlSuspeita: "http://exemplo-suspeito.test/pagamento",
+          classificacaoInicial: "ALTA",
+          reportanteId: analista.id,
+          estado: "CONVERTIDO_INCIDENTE",
         },
         {
           organizationId: clinica.id,
-          title: "Tentativa de acesso noturno ao VPN",
-          severity: "MEDIUM",
-          status: "RESOLVED",
-          detectedAt: daysAgo(15),
-          resolvedAt: daysAgo(14),
+          canal: "WHATSAPP",
+          remetente: "+244 900 999 999",
+          descricao: "Mensagem a fingir ser da direção a pedir códigos de cartão-presente (demonstração).",
+          classificacaoInicial: "MEDIA",
+          reportanteId: analista.id,
+          estado: "NOVO",
         },
       ],
     });
@@ -487,29 +575,45 @@ async function main() {
         assigneeId: gestor.id,
       },
     });
-    await prisma.backupRecord.createMany({
-      data: [
-        {
-          organizationId: kwanza.id,
-          resource: "Base de dados da loja",
-          frequency: "diário",
-          status: "SUCCESS",
-          lastRunAt: daysAgo(1),
-          nextRunAt: daysAhead(1),
-        },
-      ],
+    await prisma.backupJob.create({
+      data: {
+        organizationId: kwanza.id,
+        sistemaAtivo: "Base de dados da loja",
+        fornecedor: "OneDrive (demo)",
+        frequencia: "DIARIA",
+        ultimaExecucao: daysAgo(1),
+        estado: "SUCESSO",
+        tamanhoGB: 12.3,
+        localizacao: "Cloud",
+        retencaoDias: 30,
+        rtoHoras: 2,
+        rpoHoras: 24,
+      },
     });
-    await prisma.ticket.createMany({
-      data: [
-        {
-          organizationId: kwanza.id,
-          title: "Erro no checkout com Multicaixa Express",
-          category: "INCIDENT",
-          status: "OPEN",
-          priority: "URGENT",
-          createdById: gestor.id,
-        },
-      ],
+    await prisma.ticket.create({
+      data: {
+        organizationId: kwanza.id,
+        title: "Erro no checkout com Multicaixa Express",
+        description: "Clientes reportam falha no pagamento (demonstração).",
+        category: "INCIDENTE",
+        status: "ABERTO",
+        priority: "URGENT",
+        slaHoras: 8,
+        createdById: gestor.id,
+        events: { create: { tipo: "STATUS_CHANGE", descricao: "Ticket criado (Aberto).", autorId: gestor.id } },
+      },
+    });
+    await prisma.phishingReport.create({
+      data: {
+        organizationId: kwanza.id,
+        canal: "SMS",
+        remetente: "MBWay-Alerta (demo)",
+        descricao: "SMS a pedir confirmação de dados do cartão via link (demonstração).",
+        urlSuspeita: "http://exemplo-falso.test/mbway",
+        classificacaoInicial: "MEDIA",
+        reportanteId: gestor.id,
+        estado: "NOVO",
+      },
     });
     await prisma.phishingCampaign.createMany({
       data: [
@@ -525,6 +629,31 @@ async function main() {
         },
       ],
     });
+  }
+
+  // Histórico de snapshots de score (6 meses) para o gráfico de evolução.
+  const snapshotSeries: Record<string, number[]> = {
+    "clinica-vida-segura": [45, 48, 52, 55, 61, 66],
+    "kwanza-comercio-digital": [55, 58, 60, 63, 68, 71],
+    "academia-horizonte": [38, 40, 42, 45, 47, 50],
+  };
+  for (const [slug, scores] of Object.entries(snapshotSeries)) {
+    const organization = await prisma.organization.findUniqueOrThrow({ where: { slug } });
+    if ((await prisma.securityScoreSnapshot.count({ where: { organizationId: organization.id } })) > 0) continue;
+    for (const [index, score] of scores.entries()) {
+      const monthsAgo = scores.length - index; // ponto mais antigo → mais recente
+      const dataReferencia = new Date(now);
+      dataReferencia.setMonth(dataReferencia.getMonth() - monthsAgo);
+      await prisma.securityScoreSnapshot.create({
+        data: {
+          organizationId: organization.id,
+          score,
+          categoria: score >= 80 ? "BOM" : score >= 60 ? "ACEITAVEL" : score >= 40 ? "EM_RISCO" : "CRITICO",
+          detalhesJson: { demo: true, nota: "Snapshot histórico de demonstração." },
+          dataReferencia,
+        },
+      });
+    }
   }
 
   console.log("Seed de demonstração concluída.");
