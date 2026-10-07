@@ -759,6 +759,70 @@ async function main() {
     }
   }
 
+  // Relatórios mensais de demonstração (Fase D3).
+  if ((await prisma.securityReport.count({ where: { organizationId: clinica.id } })) === 0) {
+    const mesAnterior = new Date(now);
+    mesAnterior.setUTCDate(1);
+    mesAnterior.setUTCMonth(mesAnterior.getUTCMonth() - 1);
+    const mesAtual = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+
+    await prisma.securityReport.createMany({
+      data: [
+        {
+          organizationId: clinica.id,
+          mesReferencia: mesAnterior,
+          scoreGlobal: 61,
+          categoria: "ACEITAVEL",
+          resumoExecutivo:
+            "No mês anterior, a Clínica Vida Segura apresenta um nível de segurança ACEITÁVEL, com um score global de 61 em 100. Existe 1 risco crítico por tratar que exige atenção prioritária. Nas cópias de segurança, 1 backup com falha nos últimos 30 dias exige verificação. A sensibilização melhorou com a formação de phishing. (demonstração)",
+          riscosCriticosAltos: [
+            { title: "Acesso indevido a registos clínicos", level: 20, riskLevel: "CRITICO", status: "EM_TRATAMENTO", owner: "Analista de Demonstração", dueDate: null },
+            { title: "Ransomware em postos de trabalho", level: 12, riskLevel: "ALTO", status: "EM_TRATAMENTO", owner: "Analista de Demonstração", dueDate: null },
+          ],
+          estadoBackups: { total: 2, sucesso: 1, falha: 1, aviso: 0, desconhecido: 0, semTesteRecente: 1 },
+          ticketsIncidentes: {
+            tickets: { abertos: 2, vencidos: 0, resolvidosNoMes: 1 },
+            incidentes: { totalNoMes: 1, criticos: 0, encerrados: 0 },
+          },
+          formacoesPoliticas: { validPercent: 50, validUsers: 1, totalMembers: 2, keyPolicies: 2 },
+          acoesRecomendadas: [
+            "Resolver a falha de backup do servidor de ficheiros e repetir a execução.",
+            "Testar a restauração do servidor de ficheiros.",
+            "Garantir a conclusão da formação para os utilizadores pendentes.",
+          ],
+          status: "PUBLICADO",
+          geradoPorId: superAdmin.id,
+          dataGeracao: mesAnterior,
+        },
+        {
+          organizationId: clinica.id,
+          mesReferencia: mesAtual,
+          scoreGlobal: 66,
+          categoria: "ACEITAVEL",
+          resumoExecutivo:
+            "Neste mês, a Clínica Vida Segura apresenta um nível de segurança ACEITÁVEL, com um score global de 66 em 100 — uma melhoria de 5 pontos face ao mês anterior. Mantém-se 1 risco crítico em tratamento. (demonstração)",
+          riscosCriticosAltos: [
+            { title: "Acesso indevido a registos clínicos", level: 20, riskLevel: "CRITICO", status: "EM_TRATAMENTO", owner: "Analista de Demonstração", dueDate: null },
+          ],
+          estadoBackups: { total: 2, sucesso: 1, falha: 1, aviso: 0, desconhecido: 0, semTesteRecente: 1 },
+          ticketsIncidentes: {
+            tickets: { abertos: 2, vencidos: 1, resolvidosNoMes: 0 },
+            incidentes: { totalNoMes: 1, criticos: 0, encerrados: 0 },
+          },
+          formacoesPoliticas: { validPercent: 50, validUsers: 1, totalMembers: 2, keyPolicies: 2 },
+          acoesRecomendadas: [
+            "Tratar imediatamente 1 risco(s) crítico(s) aberto(s).",
+            "Resolver a falha de backup e repetir a execução manualmente.",
+            "Garantir a conclusão da formação para 1 utilizador pendente.",
+          ],
+          status: "GERADO",
+          geradoPorId: superAdmin.id,
+          dataGeracao: now,
+        },
+      ],
+    });
+  }
+
   console.log("Seed de demonstração concluída.");
 }
 
