@@ -42,6 +42,7 @@ enum AuditAction {
   EXPORT
   ASSIGN
   STATUS_CHANGE
+  RATE_LIMIT_EXCEEDED
 }
 
 enum IntegrationStatus {
@@ -215,6 +216,36 @@ enum ScoreCategory {
   BOM
 }
 
+enum PolicyCategory {
+  PASSWORDS
+  USO_ACEITAVEL
+  BACKUP
+  RESPOSTA_INCIDENTES
+  TRABALHO_REMOTO
+  DISPOSITIVOS_MOVEIS
+  OUTRA
+}
+
+enum PolicyStatus {
+  RASCUNHO
+  PUBLICADA
+  EM_REVISAO
+}
+
+enum TrainingCompletionStatus {
+  NAO_INICIADO
+  EM_ANDAMENTO
+  CONCLUIDO
+  EXPIRADO
+}
+
+enum ReportStatus {
+  RASCUNHO
+  GERADO
+  PUBLICADO
+  ARQUIVADO
+}
+
 enum PhishingCampaignStatus {
   DRAFT
   RUNNING
@@ -229,6 +260,9 @@ model User {
   passwordHash           String
   emailVerified          DateTime?
   isActive               Boolean                  @default(true)
+  mfaEnabled             Boolean                  @default(false)
+  mfaSecret              String?
+  mfaBackupCodes         String?
   memberships            OrganizationMembership[]
   auditLogs              AuditLog[]               @relation("AuditActor")
   assessmentsOwned       RiskAssessment[]         @relation("AssessmentOwner")
@@ -242,10 +276,48 @@ model User {
   incidentsResponsible   Incident[]               @relation("IncidentResponsible")
   incidentEvents         IncidentTimelineEvent[]
   phishingReports        PhishingReport[]
+  passwordResetTokens    PasswordResetToken[]
+  sessions               UserSession[]
+  policiesAuthored       SecurityPolicy[]
+  policyVersions         PolicyVersion[]
+  trainingCompletions    TrainingCompletion[]
+  reportsGenerated       SecurityReport[]
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @updatedAt
 
   @@index([isActive])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model RateLimitEntry {
+  key      String   @id
+  count    Int      @default(0)
+  resetAt  DateTime
+  updatedAt DateTime @updatedAt
+}
+
+model UserSession {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  revokedAt  DateTime?
+
+  @@index([userId, revokedAt])
 }
 
 model Organization {
@@ -276,6 +348,10 @@ model Organization {
   phishingCampaigns PhishingCampaign[]
   phishingReports   PhishingReport[]
   scoreSnapshots    SecurityScoreSnapshot[]
+  securityPolicies  SecurityPolicy[]
+  trainingModules   TrainingModule[]
+  trainingAssignments TrainingAssignment[]
+  securityReports   SecurityReport[]
   createdAt         DateTime                 @default(now())
   updatedAt         DateTime                 @updatedAt
 
@@ -601,6 +677,126 @@ model SecurityScoreSnapshot {
   createdAt      DateTime      @default(now())
 
   @@index([organizationId, dataReferencia])
+}
+
+model SecurityPolicy {
+  id             String         @id @default(cuid())
+  organizationId String
+  title          String
+  content        String
+  category       PolicyCategory @default(OUTRA)
+  status         PolicyStatus   @default(RASCUNHO)
+  version        Int            @default(1)
+  authorId       String?
+  author         User?          @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  publishedAt    DateTime?
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  versions       PolicyVersion[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([organizationId, status, category])
+}
+
+model PolicyVersion {
+  id        String         @id @default(cuid())
+  policyId  String
+  policy    SecurityPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  version   Int
+  title     String
+  content   String
+  authorId  String?
+  author    User?          @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt DateTime       @default(now())
+
+  @@unique([policyId, version])
+}
+
+model TrainingModule {
+  id              String               @id @default(cuid())
+  organizationId  String?
+  title           String
+  description     String?
+  content         String
+  duracaoMinutos  Int?
+  validadeMeses   Int                  @default(12)
+  ativo           Boolean              @default(true)
+  organization    Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  questions       TrainingQuestion[]
+  assignments     TrainingAssignment[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([organizationId, ativo])
+}
+
+model TrainingQuestion {
+  id                   String         @id @default(cuid())
+  trainingModuleId     String
+  trainingModule       TrainingModule @relation(fields: [trainingModuleId], references: [id], onDelete: Cascade)
+  pergunta             String
+  opcoes               Json
+  respostaCorretaIndex Int
+  createdAt            DateTime       @default(now())
+
+  @@index([trainingModuleId])
+}
+
+model TrainingAssignment {
+  id               String               @id @default(cuid())
+  organizationId   String
+  trainingModuleId String
+  atribuicaoGlobal Boolean              @default(true)
+  dataAtribuicao   DateTime             @default(now())
+  dataLimite       DateTime?
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  trainingModule   TrainingModule       @relation(fields: [trainingModuleId], references: [id], onDelete: Cascade)
+  completions      TrainingCompletion[]
+  createdAt        DateTime             @default(now())
+
+  @@index([organizationId, trainingModuleId])
+}
+
+model TrainingCompletion {
+  id                   String                  @id @default(cuid())
+  trainingAssignmentId String
+  trainingAssignment   TrainingAssignment      @relation(fields: [trainingAssignmentId], references: [id], onDelete: Cascade)
+  userId               String
+  user                 User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dataInicio           DateTime?
+  dataConclusao        DateTime?
+  score                Int?
+  validoAte            DateTime?
+  estado               TrainingCompletionStatus @default(NAO_INICIADO)
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  @@unique([trainingAssignmentId, userId])
+  @@index([userId, estado])
+}
+
+model SecurityReport {
+  id                  String        @id @default(cuid())
+  organizationId      String
+  mesReferencia       DateTime
+  scoreGlobal         Int
+  categoria           ScoreCategory
+  resumoExecutivo     String
+  riscosCriticosAltos Json
+  estadoBackups       Json
+  ticketsIncidentes   Json
+  formacoesPoliticas  Json
+  acoesRecomendadas   Json
+  status              ReportStatus  @default(GERADO)
+  geradoPorId         String?
+  geradoPor           User?         @relation(fields: [geradoPorId], references: [id], onDelete: SetNull)
+  dataGeracao         DateTime      @default(now())
+  organization        Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@unique([organizationId, mesReferencia])
+  @@index([organizationId, status])
 }
 
 model PhishingReport {

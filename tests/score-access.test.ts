@@ -18,6 +18,10 @@ vi.mock("@/lib/prisma", () => ({
     backupJob: { findMany: mocks.backupFindMany },
     phishingCampaign: { findMany: mocks.campaignFindMany },
     incident: { count: mocks.incidentCount },
+    trainingAssignment: { count: vi.fn().mockResolvedValue(0) },
+    trainingCompletion: { findMany: vi.fn().mockResolvedValue([]) },
+    securityPolicy: { count: vi.fn().mockResolvedValue(0) },
+    organizationMembership: { count: vi.fn().mockResolvedValue(0) },
     securityScoreSnapshot: {
       findFirst: mocks.snapshotFindFirst,
       findMany: mocks.snapshotFindMany,

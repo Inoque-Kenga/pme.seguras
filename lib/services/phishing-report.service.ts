@@ -2,6 +2,7 @@ import { z } from "zod";
 import { PhishingChannel, PhishingClassification, PhishingReportStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit-log.service";
+import { checkRateLimit, rateLimitMessage, RATE_LIMITS } from "@/lib/rate-limit";
 import { err, ok, type Result } from "@/lib/services/errors";
 import type { OrganizationContext } from "@/lib/current-organization";
 
@@ -71,6 +72,14 @@ export async function createPhishingReport(
   actorId: string,
   input: unknown,
 ): Promise<Result<{ id: string }>> {
+  const limit = await checkRateLimit(
+    `report-phish:${ctx.organization.id}:${actorId}`,
+    RATE_LIMITS.report.maxAttempts,
+    RATE_LIMITS.report.windowMs,
+    { actorId, organizationId: ctx.organization.id, resource: "phishing_report" },
+  );
+  if (!limit.allowed) return err("VALIDATION", rateLimitMessage(limit));
+
   const parsed = phishingReportSchema.safeParse(input);
   if (!parsed.success) return err("VALIDATION", firstIssue(parsed.error));
 

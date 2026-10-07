@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth-options";
 import { prisma } from "@/lib/prisma";
+import { isSessionActive } from "@/lib/services/session.service";
 
 async function getSession() {
   return getServerSession(authOptions);
@@ -9,10 +10,14 @@ async function getSession() {
 
 /**
  * Obtém a sessão ou redireciona para o login. Uso em páginas privadas.
+ * Sessões terminadas em /seguranca ou por redefinição de password são rejeitadas.
  */
 export async function requireSession() {
   const session = await getSession();
   if (!session?.user?.id) redirect("/login");
+  if (!(await isSessionActive(session.user.sessionId))) {
+    redirect("/login?error=Sess%C3%A3o+terminada.+Inicie+sess%C3%A3o+novamente.");
+  }
   return session;
 }
 

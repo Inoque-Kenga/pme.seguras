@@ -20,6 +20,9 @@ async function collectScoreInput(organizationId: string, now = new Date()): Prom
     backupJobs,
     campaigns,
     incidentsHandled,
+    assignmentsCount,
+    validCompletions,
+    keyPolicies,
   ] = await Promise.all([
     prisma.asset.count({ where: { organizationId, archivedAt: null, type: "HARDWARE" } }),
     prisma.asset.count({ where: { organizationId, archivedAt: null, type: "HARDWARE", protecaoEndpoint: true } }),
@@ -36,7 +39,25 @@ async function collectScoreInput(organizationId: string, now = new Date()): Prom
       select: { sentCount: true, clickedCount: true },
     }),
     prisma.incident.count({ where: { organizationId, status: { in: ["RECUPERADO", "ENCERRADO"] } } }),
+    prisma.trainingAssignment.count({ where: { organizationId } }),
+    prisma.trainingCompletion.findMany({
+      where: {
+        trainingAssignment: { organizationId },
+        estado: "CONCLUIDO",
+        validoAte: { gt: now },
+      },
+      select: { userId: true },
+      distinct: ["userId"],
+    }),
+    prisma.securityPolicy.count({
+      where: { organizationId, status: "PUBLICADA", category: { in: ["PASSWORDS", "RESPOSTA_INCIDENTES", "USO_ACEITAVEL"] } },
+    }),
   ]);
+
+  // Utilizadores únicos com formação válida (para a percentagem por utilizador).
+  const membersCount = await prisma.organizationMembership.count({
+    where: { organizationId, status: "ACTIVE", user: { isActive: true } },
+  });
 
   const jobsWithSuccess = backupJobs.filter(
     (job) => job.estado === "SUCESSO" && job.ultimaExecucao && job.ultimaExecucao >= thirtyDaysAgo,
@@ -56,8 +77,12 @@ async function collectScoreInput(organizationId: string, now = new Date()): Prom
     networkSegmented: null, // sem dados de rede — pontuação conservadora
     assets: { total: assetTotal, complete: assetComplete },
     phishing: campaigns.length === 0 ? null : { sent, clicked },
+    training:
+      assignmentsCount === 0
+        ? null
+        : { assigned: membersCount, validCompleted: validCompletions.length },
     incidentsHandled,
-    hasIncidentPolicy: null, // módulo de políticas futuro — pontuação conservadora
+    hasIncidentPolicy: keyPolicies > 0,
   };
 }
 

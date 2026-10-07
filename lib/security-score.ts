@@ -30,8 +30,10 @@ export type SecurityScoreInput = {
   assets: { total: number; complete: number };
   /** Agregado das simulações (null = sem campanhas). */
   phishing: { sent: number; clicked: number } | null;
+  /** Utilizadores com formação válida (null = sem formações atribuídas). */
+  training: { assigned: number; validCompleted: number } | null;
   incidentsHandled: number;
-  /** Política de resposta a incidentes publicada (null = sem dados). */
+  /** Política publicada em categoria chave (null = sem dados). */
   hasIncidentPolicy: boolean | null;
 };
 
@@ -234,16 +236,21 @@ export function computeSecurityScore(input: SecurityScoreInput): SecurityScoreRe
   }
 
   // 7) Formação e phishing (10)
-  if (!input.phishing) {
+  if (input.training) {
+    const ratio = input.training.assigned > 0 ? clamp01(input.training.validCompleted / input.training.assigned) : 0;
+    const percent = Math.round(ratio * 100);
     categories.push({
       key: "formacao_phishing",
       label: CATEGORY_LABELS.formacao_phishing,
       weight: 10,
-      score: 3,
-      detail: "Sem dados de formação nem simulações — pontuação conservadora aplicada.",
-      incomplete: true,
+      score: Math.round(10 * ratio),
+      detail:
+        percent >= 100
+          ? "Todos os utilizadores têm formação válida."
+          : `Apenas ${percent}% dos utilizadores têm formação válida.`,
+      incomplete: false,
     });
-  } else {
+  } else if (input.phishing) {
     const clickRate = input.phishing.sent > 0 ? clamp01(input.phishing.clicked / input.phishing.sent) : 0;
     categories.push({
       key: "formacao_phishing",
@@ -255,6 +262,15 @@ export function computeSecurityScore(input: SecurityScoreInput): SecurityScoreRe
           ? `${Math.round(clickRate * 100)}% de cliques nas simulações de phishing.`
           : "Simulações registadas sem envios.",
       incomplete: false,
+    });
+  } else {
+    categories.push({
+      key: "formacao_phishing",
+      label: CATEGORY_LABELS.formacao_phishing,
+      weight: 10,
+      score: 3,
+      detail: "Sem formações atribuídas nem simulações — pontuação conservadora aplicada.",
+      incomplete: true,
     });
   }
 

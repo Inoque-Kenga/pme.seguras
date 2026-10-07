@@ -11,7 +11,12 @@ export const config = {
     "/tickets/:path*",
     "/incidentes/:path*",
     "/phishing/:path*",
+    "/politicas/:path*",
+    "/formacoes/:path*",
+    "/minhas-formacoes/:path*",
+    "/relatorios/:path*",
     "/organizacoes/:path*",
     "/admin/:path*",
+    "/seguranca/:path*",
   ],
 };

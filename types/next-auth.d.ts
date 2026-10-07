@@ -4,6 +4,7 @@ declare module "next-auth" {
   interface Session {
     user: {
       id: string;
+      sessionId?: string;
       memberships: { organizationId: string; role: string }[];
     } & NonNullable<DefaultSession["user"]>;
   }
@@ -16,6 +17,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     userId?: string;
+    sessionId?: string;
     memberships?: { organizationId: string; role: string }[];
   }
 }

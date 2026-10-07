@@ -631,6 +631,109 @@ async function main() {
     });
   }
 
+  // ---------------------------------------------------------------------
+  // Políticas e formações (Fase D2)
+  // ---------------------------------------------------------------------
+  if ((await prisma.securityPolicy.count({ where: { organizationId: clinica.id } })) === 0) {
+    await prisma.securityPolicy.createMany({
+      data: [
+        {
+          organizationId: clinica.id,
+          title: "Política de palavras-passe",
+          category: "PASSWORDS",
+          status: "PUBLICADA",
+          version: 2,
+          authorId: superAdmin.id,
+          publishedAt: daysAgo(60),
+          content:
+            "# Política de Palavras-passe (demonstração)\n\n1. Mínimo 12 caracteres com maiúsculas, minúsculas e dígitos.\n2. Nunca partilhar passwords por e-mail, WhatsApp ou papel.\n3. Usar um gestor de passwords sempre que possível.\n4. Mudar imediatamente se houver suspeita de compromisso.",
+        },
+        {
+          organizationId: clinica.id,
+          title: "Política de resposta a incidentes",
+          category: "RESPOSTA_INCIDENTES",
+          status: "PUBLICADA",
+          version: 1,
+          authorId: superAdmin.id,
+          publishedAt: daysAgo(45),
+          content:
+            "# Política de Resposta a Incidentes (demonstração)\n\n1. Reportar de imediato à equipa de segurança.\n2. Isolar o equipamento, sem desligar.\n3. Preservar evidências.\n4. Nunca pagar resgates.\n5. Registar ações e lições aprendidas.",
+        },
+        {
+          organizationId: clinica.id,
+          title: "Política de uso aceitável",
+          category: "USO_ACEITAVEL",
+          status: "RASCUNHO",
+          version: 1,
+          authorId: superAdmin.id,
+          content:
+            "# Política de Uso Aceitável (rascunho, demonstração)\n\n1. Equipamentos da empresa apenas para fins profissionais.\n2. Proibido instalar software sem autorização.",
+        },
+      ],
+    });
+
+    const moduloPhishing = await prisma.trainingModule.create({
+      data: {
+        organizationId: clinica.id,
+        title: "Noções essenciais de phishing",
+        description: "Como reconhecer e reagir a mensagens fraudulentas (demonstração).",
+        content:
+          "Phishing é quando alguém se faz passar por uma entidade confiável para roubar dados.\n\nSinais de alerta:\n- Urgência excessiva e ameaças.\n- Remetentes com domínios parecidos mas diferentes.\n- Pedidos de passwords, códigos ou transferências.\n\nRegra de ouro: em dúvida, não clique — reporte.",
+        duracaoMinutos: 10,
+        validadeMeses: 12,
+        questions: {
+          create: [
+            {
+              pergunta: "Qual é o objetivo principal de um ataque de phishing?",
+              opcoes: ["Roubar credenciais ou dados", "Acelerar o computador", "Enviar publicidade legítima", "Testar a internet"],
+              respostaCorretaIndex: 0,
+            },
+            {
+              pergunta: "Um e-mail urgente pede a sua password. O que faz?",
+              opcoes: ["Responde rapidamente", "Ignora e reporta à equipa de segurança", "Reencaminha aos colegas", "Apaga sem reportar"],
+              respostaCorretaIndex: 1,
+            },
+            {
+              pergunta: "Qual destes é um sinal comum de phishing?",
+              opcoes: ["Domínio ligeiramente diferente do oficial", "Assinatura da empresa", "E-mail do seu chefe direto", "Newsletter subscrita"],
+              respostaCorretaIndex: 0,
+            },
+            {
+              pergunta: "Recebeu um link suspeito no WhatsApp de um 'colega'. Primeiro passo?",
+              opcoes: ["Clicar para verificar", "Confirmar com o colega por outro canal", "Partilhar no grupo", "Responder ao remetente"],
+              respostaCorretaIndex: 1,
+            },
+            {
+              pergunta: "Se clicou num link suspeito e introduziu a password, deve:",
+              opcoes: ["Não contar a ninguém", "Mudar a password e reportar de imediato", "Esperar uma semana", "Reiniciar o computador apenas"],
+              respostaCorretaIndex: 1,
+            },
+          ],
+        },
+      },
+    });
+    await prisma.trainingAssignment.create({
+      data: {
+        organizationId: clinica.id,
+        trainingModuleId: moduloPhishing.id,
+        atribuicaoGlobal: true,
+        completions: {
+          create: [
+            {
+              userId: analista.id,
+              dataInicio: daysAgo(20),
+              dataConclusao: daysAgo(20),
+              score: 100,
+              validoAte: daysAhead(345),
+              estado: "CONCLUIDO",
+            },
+            { userId: superAdmin.id, estado: "NAO_INICIADO" },
+          ],
+        },
+      },
+    });
+  }
+
   // Histórico de snapshots de score (6 meses) para o gráfico de evolução.
   const snapshotSeries: Record<string, number[]> = {
     "clinica-vida-segura": [45, 48, 52, 55, 61, 66],

@@ -29,3 +29,21 @@ a,
 input {
   font: inherit;
 }
+
+@media print {
+  /* Esconde a navegação lateral e o cabeçalho da aplicação na impressão. */
+  aside,
+  header {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+  main {
+    padding: 0 !important;
+  }
+  /* Evita quebras de página a meio das secções do relatório. */
+  article section {
+    break-inside: avoid;
+  }
+}

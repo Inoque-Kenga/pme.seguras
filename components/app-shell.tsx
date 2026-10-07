@@ -1,8 +1,12 @@
 import Link from "next/link";
 import {
+  BookOpenCheck,
   Building2,
   ClipboardList,
   DatabaseBackup,
+  FileBarChart,
+  FileText,
+  GraduationCap,
   LayoutDashboard,
   ListTodo,
   Menu,
@@ -21,10 +25,15 @@ const navigation = [
   { href: "/avaliacoes", label: "Avaliações", icon: ClipboardList, roles: [] },
   { href: "/riscos", label: "Riscos", icon: ShieldAlert, roles: [] },
   { href: "/tarefas", label: "Tarefas", icon: ListTodo, roles: [] },
+  { href: "/politicas", label: "Políticas", icon: FileText, roles: [] },
+  { href: "/formacoes", label: "Formações", icon: GraduationCap, roles: [] },
   { href: "/backups", label: "Backups", icon: DatabaseBackup, roles: [] },
   { href: "/tickets", label: "Tickets", icon: Ticket, roles: [] },
   { href: "/incidentes", label: "Incidentes", icon: Siren, roles: [] },
   { href: "/phishing", label: "Phishing", icon: ShieldAlert, roles: [] },
+  { href: "/relatorios", label: "Relatórios", icon: FileBarChart, roles: [] },
+  { href: "/minhas-formacoes", label: "Minhas formações", icon: BookOpenCheck, roles: [] },
+  { href: "/seguranca", label: "Segurança", icon: ShieldCheck, roles: [] },
   { href: "/admin/organizacoes", label: "Organizações", icon: Building2, roles: ["SUPER_ADMIN", "ANALISTA_SEGURANCA"] },
   { href: "/admin/utilizadores", label: "Acessos", icon: Users, roles: ["SUPER_ADMIN"] },
 ];

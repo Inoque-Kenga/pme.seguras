@@ -15,13 +15,17 @@ import type {
   PhishingChannel,
   PhishingClassification,
   PhishingReportStatus,
+  PolicyCategory,
+  PolicyStatus,
   Priority,
+  ReportStatus,
   RiskLevel,
   RiskStatus,
   Role,
   ScoreCategory,
   TicketCategory,
   TicketStatus,
+  TrainingCompletionStatus,
   TreatmentTaskStatus,
 } from "@prisma/client";
 
@@ -42,6 +46,56 @@ export const organizationStatusLabels: Record<OrganizationStatus, string> = {
 export const organizationStatusTones: Record<OrganizationStatus, Tone> = {
   ACTIVE: "green",
   ARCHIVED: "slate",
+};
+
+export const reportStatusLabels: Record<ReportStatus, string> = {
+  RASCUNHO: "Rascunho",
+  GERADO: "Gerado",
+  PUBLICADO: "Publicado",
+  ARQUIVADO: "Arquivado",
+};
+
+export const reportStatusTones: Record<ReportStatus, Tone> = {
+  RASCUNHO: "slate",
+  GERADO: "blue",
+  PUBLICADO: "green",
+  ARQUIVADO: "slate",
+};
+
+export const policyCategoryLabels: Record<PolicyCategory, string> = {
+  PASSWORDS: "Palavras-passe",
+  USO_ACEITAVEL: "Uso aceitável",
+  BACKUP: "Cópias de segurança",
+  RESPOSTA_INCIDENTES: "Resposta a incidentes",
+  TRABALHO_REMOTO: "Trabalho remoto",
+  DISPOSITIVOS_MOVEIS: "Dispositivos móveis",
+  OUTRA: "Outra",
+};
+
+export const policyStatusLabels: Record<PolicyStatus, string> = {
+  RASCUNHO: "Rascunho",
+  PUBLICADA: "Publicada",
+  EM_REVISAO: "Em revisão",
+};
+
+export const policyStatusTones: Record<PolicyStatus, Tone> = {
+  RASCUNHO: "slate",
+  PUBLICADA: "green",
+  EM_REVISAO: "amber",
+};
+
+export const trainingCompletionStatusLabels: Record<TrainingCompletionStatus, string> = {
+  NAO_INICIADO: "Não iniciado",
+  EM_ANDAMENTO: "Em andamento",
+  CONCLUIDO: "Concluído",
+  EXPIRADO: "Expirado",
+};
+
+export const trainingCompletionStatusTones: Record<TrainingCompletionStatus, Tone> = {
+  NAO_INICIADO: "slate",
+  EM_ANDAMENTO: "blue",
+  CONCLUIDO: "green",
+  EXPIRADO: "red",
 };
 
 export const scoreCategoryLabels: Record<ScoreCategory, string> = {

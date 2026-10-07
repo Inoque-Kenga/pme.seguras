@@ -2,6 +2,7 @@ import { z } from "zod";
 import { IncidentSeverity, IncidentStatus, IncidentType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit-log.service";
+import { checkRateLimit, rateLimitMessage, RATE_LIMITS } from "@/lib/rate-limit";
 import { err, ok, type Result } from "@/lib/services/errors";
 import type { OrganizationContext } from "@/lib/current-organization";
 
@@ -126,6 +127,14 @@ export async function createIncident(
   input: unknown,
 ): Promise<Result<{ id: string }>> {
   if (!canEditIncidents(ctx.role)) return err("FORBIDDEN", "O seu papel não permite registar incidentes.");
+
+  const limit = await checkRateLimit(
+    `report-incident:${ctx.organization.id}:${actorId}`,
+    RATE_LIMITS.report.maxAttempts,
+    RATE_LIMITS.report.windowMs,
+    { actorId, organizationId: ctx.organization.id, resource: "incident" },
+  );
+  if (!limit.allowed) return err("VALIDATION", rateLimitMessage(limit));
 
   const parsed = incidentInputSchema.safeParse(input);
   if (!parsed.success) return err("VALIDATION", firstIssue(parsed.error));

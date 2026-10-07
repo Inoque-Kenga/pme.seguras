@@ -137,6 +137,106 @@
 - `tests/score-access.test.ts` — todas as queries do cálculo filtradas por `organizationId`; snapshots não duplicados dentro de 24h.
 - Total acumulado: 76 testes.
 
+## Fase D1 — Segurança da plataforma (concluída)
+
+### Rate limiting (`lib/rate-limit.ts`)
+
+- Tabela `RateLimitEntry` (janela fixa, limpeza lazy) — funciona com várias instâncias.
+- Limites: login 5/15 min (por e-mail), recuperação 3/1h (por e-mail), reportes 10/1h (por utilizador).
+- Excedido → mensagem clara com tempo de espera + auditoria (`RATE_LIMIT_EXCEEDED`, sem passwords).
+- Nota: limitação por IP não é aplicável em server actions/NextAuth sem proxy; documentado no README.
+
+### Recuperação de password
+
+- Rotas públicas `/recuperar-password` e `/redefinir-password/[token]`.
+- Token aleatório (32 bytes) guardado como **hash SHA-256**, validade 1 hora, uso único (`PasswordResetToken`).
+- Resposta anti-enumeração (não revela se o e-mail existe); em dev a ligação aparece no terminal e na página.
+- Sucesso → password com política forte (12+ chars, maiúscula, minúscula, dígito) + **todas as sessões revogadas**.
+- Auditoria em pedido, sucesso e falha (sem passwords).
+
+### MFA TOTP
+
+- Campos `mfaEnabled`, `mfaSecret` (cifrado AES-256-GCM), `mfaBackupCodes` (hashes) em `User`.
+- Ativação em `/seguranca`: QR code (`generateURI` otplib v13 + `qrcode`) → validação do 1.º código → 8 códigos de backup mostrados uma única vez.
+- Login: após password correta, `authorize()` exige código TOTP ou backup (erro `MFA_REQUIRED` → segundo passo no formulário de login). Backups são de uso único (consumidos).
+- Desativação exige password atual + TOTP; regenerar códigos exige TOTP e invalida os antigos.
+- Auditoria em ativação, desativação, regeneração e falhas de MFA no login.
+- Nota de design: o segundo passo MFA está integrado no `/login` (NextAuth credentials não suporta "meia-sessão" sem estado extra); `/mfa-verify` redireciona para `/login`.
+
+### Página de segurança (`/seguranca`)
+
+- Estado do MFA + ativação/desativação, códigos de backup restantes e regeneração.
+- Alteração de password (exige a atual; revoga as outras sessões).
+- Sessões ativas (`UserSession` registada no login via callback JWT; revogar individual ou todas as outras; sessões revogadas são rejeitadas no `requireSession`).
+- Últimos logins (sucesso/falha) a partir da auditoria; logout auditado via evento `signOut`.
+
+### Testes
+
+- `tests/rate-limit.test.ts` — janelas, bloqueio com tempo de espera e auditoria.
+- `tests/password-reset.test.ts` — fluxo completo, anti-enumeração, token hash, password fraca.
+- `tests/mfa.test.ts` — TOTP real (otplib v13), backups de uso único, login MFA.
+- `tests/session-access.test.ts` — não é possível terminar sessões de outro utilizador.
+- Total acumulado: 95 testes.
+
+## Fase D2 — Políticas e formações (concluída)
+
+### Políticas de segurança (`/organizacoes/[id]/politicas`)
+
+- Modelo `SecurityPolicy` (7 categorias, estado RASCUNHO/PUBLICADA/EM_REVISAO, versão) + `PolicyVersion` (histórico).
+- Edição de política **publicada** arquiva a versão atual e incrementa automaticamente; histórico visível no detalhe.
+- COLABORADOR vê apenas publicadas; criação/edição exclusiva de ANALISTA_SEGURANCA e GESTOR_CLIENTE.
+- Auditoria em criação, edição e mudança de estado/publicação.
+
+### Formações e questionários (`/organizacoes/[id]/formacoes`, `/minhas-formacoes`)
+
+- `TrainingModule` (por organização ou global) + `TrainingQuestion` (escolha múltipla, máx. 5) + `TrainingAssignment` (global ou por utilizador) + `TrainingCompletion` (score, validade, estado).
+- Atribuição cria completions em massa (membros ativos); membros novos recebem lazy no acesso.
+- Questionário sem respostas corretas no cliente; submissão avaliada no servidor (≥70% aprova) → CONCLUIDO com `validoAte = conclusão + validadeMeses`; reprovado fica EM_ANDAMENTO e pode tentar de novo.
+- Expiração lazy (leitura marca EXPIRADO) via função pura `effectiveCompletionState` (testada).
+- Painel de gestão: % de utilizadores válidos, pendentes e expirados.
+
+### Ajuste do score
+
+- "Formação e phishing" (10): % de utilizadores únicos com formação válida (fallback para taxa de cliques se não houver formações; conservador se nenhum dos dois).
+- "Resposta a incidentes e políticas" (5): política publicada em categoria chave (PASSWORDS/RESPOSTA_INCIDENTES/USO_ACEITAVEL) → 3 pts + incidentes tratados → +2.
+- Fatores do dashboard refletem estes dados ("Apenas 40% dos utilizadores têm formação válida", "sem política publicada").
+
+### Testes
+
+- Schemas dos 4 modelos; `computeValidUntil`; `effectiveCompletionState`; score com formações/políticas; isolamento multi-tenant (COLABORADOR só vê publicadas e as suas completions).
+- Total acumulado: 120 testes.
+
+## Fase D3 — Relatórios mensais PDF (concluída)
+
+### Modelo e geração (`lib/services/report.service.ts`)
+
+- `SecurityReport` (um por mês/organização, `@@unique(organizationId, mesReferencia)`): score, categoria, resumo executivo, secções em JSON, estado (GERADO/PUBLICADO/ARQUIVADO), autor e data de geração.
+- `gerarRelatorio` recolhe dados reais do mês (score + variação, riscos altos/críticos, backups, tickets, incidentes, formações, políticas) e faz upsert (regenerar = substituir com dados frescos).
+- Conteúdo gerado por funções puras testadas (`lib/report-content.ts`):
+  - `buildExecutiveSummary` — texto estruturado por regras (score, variação, riscos, backups, incidentes, formação, políticas).
+  - `buildRecommendedActions` — 3–7 ações priorizadas por gap (incidentes críticos → riscos críticos → falhas de backup → testes → SLA → formação → políticas).
+- Auditoria em geração e mudanças de estado; gestão exclusiva de ANALISTA_SEGURANCA e GESTOR_CLIENTE.
+
+### Rotas e UI
+
+- `/organizacoes/[id]/relatorios` — lista com filtros por mês/estado + gerar mês atual.
+- `/relatorios/novo` — escolha do mês de referência.
+- `/relatorios/[reportId]` — documento com 6 secções numeradas (resumo executivo, riscos, backups com semáforo, tickets/incidentes, formações/políticas, ações) + rodapé legal.
+- Exportação PDF via `window.print()` com CSS `@media print` (navegação escondida, secções sem quebra).
+
+### Testes
+
+- `tests/report-content.test.ts` — resumo executivo e recomendações (cenários positivo/negativo/máximo).
+- `tests/report-access.test.ts` — isolamento multi-tenant e validação do mês.
+- Total acumulado: 134 testes.
+
+## Próximos passos opcionais
+
+- Geração de PDF no servidor (@react-pdf/renderer) para anexos automáticos.
+- Envio mensal agendado por e-mail (integração SMTP) dos relatórios publicados.
+- Campos de MFA por conta administrativa e de segmentação de rede para completar o score.
+- Rate limiting por IP ao nível do proxy/middleware de plataforma.
+
 ## Fase C concluída ✅
 
 C1 (organizações/utilizadores/ativos) → C2 (avaliações/riscos/tarefas) → C3 (backups/tickets/incidentes/phishing) → C4 (score/dashboards).

@@ -9,6 +9,7 @@ const perfectInput: SecurityScoreInput = {
   networkSegmented: true,
   assets: { total: 10, complete: 10 },
   phishing: { sent: 50, clicked: 0 },
+  training: { assigned: 10, validCompleted: 10 },
   incidentsHandled: 3,
   hasIncidentPolicy: true,
 };
@@ -21,6 +22,7 @@ const emptyInput: SecurityScoreInput = {
   networkSegmented: null,
   assets: { total: 0, complete: 0 },
   phishing: null,
+  training: null,
   incidentsHandled: 0,
   hasIncidentPolicy: null,
 };
@@ -53,9 +55,10 @@ describe("computeSecurityScore", () => {
     expect(backups.score).toBeLessThan(20);
   });
 
-  it("taxa de cliques de phishing alta reduz a categoria de formação", () => {
+  it("taxa de cliques de phishing alta reduz a categoria de formação (sem formações atribuídas)", () => {
     const result = computeSecurityScore({
       ...perfectInput,
+      training: null, // sem formações → fallback para taxa de cliques
       phishing: { sent: 50, clicked: 40 },
     });
     const phishing = result.categories.find((category) => category.key === "formacao_phishing")!;
@@ -80,6 +83,7 @@ describe("classificação em categorias", () => {
       networkSegmented: pct >= 0.5,
       assets: { total: 100, complete: Math.round(100 * pct) },
       phishing: { sent: 100, clicked: Math.round(100 * (1 - pct)) },
+      training: null,
       incidentsHandled: pct > 0.2 ? 2 : 0,
       hasIncidentPolicy: pct >= 0.6,
     });
